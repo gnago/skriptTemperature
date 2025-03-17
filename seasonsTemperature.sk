@@ -53,6 +53,11 @@ options:
     drySpeed: 1 # How quickly players lose wet points until wetness is 0
     wetnessTemp: -16 # Temperature change when wet
     useWetnessTempDegradation: 1 # temp change from being wet = wetnessTemp * wetness level/maxWetness. 0 for false, 1 for true
+    
+    ### Resisting ###
+    idealTemp: 75 # This is used as the target temperature when resisting. The more you resist, the closer to idealTemp you get
+    minTempWhileResisting: -22
+    maxTempWhileResisting: 104
 
 #######
 # Factors Implemented:
@@ -65,7 +70,7 @@ options:
 # clothing ✔
 # Activity ✔ Add jumping, sleeping, and flying/gliding?
 # Food : Maybe same implementation as potions. General consumable implementation.
-# Fire resistance and potions : Implement by adding a resistance % to heat. If still above a certain amount (e.g. 90F), bring down to 90F. Implement around the idea of also adding custom cold-resist potions in future seasons.
+# Fire resistance and potions ✔
 # Gradual temp increase ✔ (Maybe show two numbers: Real temp and current temp. Current temp is used for debuffs/effects). Probably a good idea to make the speed of the temp change dependant on the source (e.g. sunlight heat will increase more slowly than block heat)
 # Add Debuffs : Just add the system for now. Need others' input for which debbuffs to add. Should allow for potion effects (e.g. slowness), whatever freezing is (condition?), look into placeholderAPI for thirst implementation
 
@@ -143,6 +148,14 @@ on load:
     set {temp.items::packed ice} to -12
     set {temp.items::blue ice} to -24
     
+    # Potion effects that resist temperature
+    # [-1,0[ = resist cold temperatures by absolute value * 100 % (e.g. -0.7 will resist 70% of the cold)
+    # ] 0,1] = resist hot temperatures by value * 100 % (e.g. 0.7 will resist 70% of the heat)
+    # ] 1,2] = resist all temperatures by 1 - value * 100 % (e.g. 1.7 will resist 70% of hot and cold)
+    set {temp.resistanceEffects::fire resistance} to 0.7
+    set {temp.resistanceEffects::night vision} to -0.7
+    set {temp.resistanceEffects::resistance} to 1.55
+    
     #reset the loop
     set {temp.enabled} to false
     wait "%{@tempRefreshRate} + 1% ticks" parsed as timespan
@@ -187,20 +200,20 @@ function startTemperatureLoop():
             
             if {temp.players.%loop-player%.debugModeOn} is set:
                 set title of loop-player's fastboard to "&3Temperature Factors&r (f/a)"
-                set line 1 of loop-player's fastboard to "&7Biome Temp:&r %getBiomeTemp(loop-player)%"
-                set line 2 of loop-player's fastboard to "&7Biome Humidity:&r %getBiomeHumidity(loop-player)%"
-                set line 3 of loop-player's fastboard to "&7Time:&r %getTime(loop-player)%"
-                set line 4 of loop-player's fastboard to "&7Time Temp:&r %calcTimeHeat(getTime(loop-player), getBiomeTemp(loop-player), getBiomeHumidity(loop-player))%"
-                set line 5 of loop-player's fastboard to "&7Sky exposure:&r %sunlight level at loop-player%"
-                set line 6 of loop-player's fastboard to "&7Sunlight:&r %{temp.players.%loop-player%.feelTemp.sunlightTemp}%/%{temp.players.%loop-player%.actualTemp.sunlightTemp}%"
-                set line 7 of loop-player's fastboard to "&7Weather:&r %{temp.players.%loop-player%.feelTemp.weatherTemp}%/%{temp.players.%loop-player%.actualTemp.weatherTemp}%"
-                set line 8 of loop-player's fastboard to "&7Water:&r %{temp.players.%loop-player%.feelTemp.waterTemp}%/%{temp.players.%loop-player%.actualTemp.waterTemp}%"
-                set line 9 of loop-player's fastboard to "&7Wetness:&r %{temp.players.%loop-player%.wetness}%/{@maxWetness}:&r %{temp.players.%loop-player%.wetnessTemp}%"
-                set line 10 of loop-player's fastboard to "&7Environment:&r %{temp.players.%loop-player%.feelTemp.environmentTemp}%/%{temp.players.%loop-player%.actualTemp.environmentTemp}%"
-                set line 11 of loop-player's fastboard to "&7Activity:&r %{temp.players.%loop-player%.feelTemp.activityTemp}%/%{temp.players.%loop-player%.actualTemp.activityTemp}%"
-                set line 12 of loop-player's fastboard to "&7State:&r %{temp.players.%loop-player%.feelTemp.stateTemp}%/%{temp.players.%loop-player%.actualTemp.stateTemp}%"
+                set line 1 of loop-player's fastboard to "&7Biome Temp/Hum:&r %getBiomeTemp(loop-player)%/%getBiomeHumidity(loop-player)%"
+                set line 2 of loop-player's fastboard to "&7Time:&r %getTime(loop-player)%"
+                set line 3 of loop-player's fastboard to "&7Time Temp:&r %calcTimeHeat(getTime(loop-player), getBiomeTemp(loop-player), getBiomeHumidity(loop-player))%"
+                set line 4 of loop-player's fastboard to "&7Sky exposure:&r %sunlight level at loop-player%"
+                set line 5 of loop-player's fastboard to "&7Sunlight:&r %{temp.players.%loop-player%.feelTemp.sunlightTemp}%/%{temp.players.%loop-player%.actualTemp.sunlightTemp}%"
+                set line 6 of loop-player's fastboard to "&7Weather:&r %{temp.players.%loop-player%.feelTemp.weatherTemp}%/%{temp.players.%loop-player%.actualTemp.weatherTemp}%"
+                set line 7 of loop-player's fastboard to "&7Water:&r %{temp.players.%loop-player%.feelTemp.waterTemp}%/%{temp.players.%loop-player%.actualTemp.waterTemp}%"
+                set line 8 of loop-player's fastboard to "&7Wetness:&r %{temp.players.%loop-player%.wetness}%/{@maxWetness}:&r %{temp.players.%loop-player%.wetnessTemp}%"
+                set line 9 of loop-player's fastboard to "&7Environment:&r %{temp.players.%loop-player%.feelTemp.environmentTemp}%/%{temp.players.%loop-player%.actualTemp.environmentTemp}%"
+                set line 10 of loop-player's fastboard to "&7Activity:&r %{temp.players.%loop-player%.feelTemp.activityTemp}%/%{temp.players.%loop-player%.actualTemp.activityTemp}%"
+                set line 11 of loop-player's fastboard to "&7State:&r %{temp.players.%loop-player%.feelTemp.stateTemp}%/%{temp.players.%loop-player%.actualTemp.stateTemp}%"
+                set line 12 of loop-player's fastboard to "&7Tool:&r %{temp.players.%loop-player%.feelTemp.heldItemTemp}%/%{temp.players.%loop-player%.actualTemp.heldItemTemp}%"
                 set line 13 of loop-player's fastboard to "&7Clothing:&r %{temp.players.%loop-player%.feelTemp.clothingTemp}%/%{temp.players.%loop-player%.actualTemp.clothingTemp}%"
-                set line 14 of loop-player's fastboard to "&7Tool:&r %{temp.players.%loop-player%.feelTemp.heldItemTemp}%/%{temp.players.%loop-player%.actualTemp.heldItemTemp}%"
+                set line 14 of loop-player's fastboard to "&7Resist:&r %{temp.resistanceEffects.debug.resistInfo}%"
                 set line 15 of loop-player's fastboard to "&7Total:&r %{temp.players.%loop-player%.feelTemp.total}%/%{temp.players.%loop-player%.actualTemp.total}%"
                 
         wait {@tempRefreshRate} ticks
@@ -268,8 +281,8 @@ function calcPlayerTemp(plr: player):
         add {temp.players.%{_plr}%.wetnessTemp} to {temp.players.%{_plr}%.actualTemp.total}
         add {temp.players.%{_plr}%.actualTemp.activityTemp} to {temp.players.%{_plr}%.actualTemp.total}
         add {temp.players.%{_plr}%.actualTemp.stateTemp} to {temp.players.%{_plr}%.actualTemp.total}
-        add {temp.players.%{_plr}%.actualTemp.clothingTemp} to {temp.players.%{_plr}%.actualTemp.total}
         add {temp.players.%{_plr}%.actualTemp.heldItemTemp} to {temp.players.%{_plr}%.actualTemp.total}
+        add {temp.players.%{_plr}%.actualTemp.clothingTemp} to {temp.players.%{_plr}%.actualTemp.total}
         
         set {temp.players.%{_plr}%.feelTemp.total} to 0
         add {temp.players.%{_plr}%.feelTemp.sunlightTemp} to {temp.players.%{_plr}%.feelTemp.total}
@@ -279,8 +292,13 @@ function calcPlayerTemp(plr: player):
         add {temp.players.%{_plr}%.wetnessTemp} to {temp.players.%{_plr}%.feelTemp.total}
         add {temp.players.%{_plr}%.feelTemp.activityTemp} to {temp.players.%{_plr}%.feelTemp.total}
         add {temp.players.%{_plr}%.feelTemp.stateTemp} to {temp.players.%{_plr}%.feelTemp.total}
-        add {temp.players.%{_plr}%.feelTemp.clothingTemp} to {temp.players.%{_plr}%.feelTemp.total}
         add {temp.players.%{_plr}%.feelTemp.heldItemTemp} to {temp.players.%{_plr}%.feelTemp.total}
+        
+        # Apply resistances
+        set {temp.players.%{_plr}%.feelTemp.preResistTotal} to {temp.players.%{_plr}%.feelTemp.total}
+        set {temp.players.%{_plr}%.feelTemp.total} to calcResistanceEffects({_plr}, {temp.players.%{_plr}%.feelTemp.total})
+        # The following factors can't be resisted
+        add {temp.players.%{_plr}%.feelTemp.clothingTemp} to {temp.players.%{_plr}%.feelTemp.total}
         
 # End of calcPlayerTemp
 
@@ -532,7 +550,63 @@ function calcHeldItemTemp(plr: player) :: number:
 #######################################
 #set {temp.consumables.resist::recovery compass} to 0.6
 #on consume:
-#    if 
+#    if
+
+### Potion Effects
+function calcResistanceEffects(plr: player, temp: number):: number:
+    set {_currTemp} to {_temp}
+    set {_resPerc} to 1 # the percent to reduce the temp to
+    set {_resistingCold} to false
+    set {_resistingHot} to false
+    loop active potion effects of {_plr} where [{temp.resistanceEffects::%type of input%} is set]:
+        if any: # Don't count the turte helmet's water breathing. Have to ban last 10 seconds for all of water breathing or else the player can just spam the helmet on and off to gain the resistance
+            type of loop-potion effect is not water breathing
+            potion duration of loop-potion effect is greater than 10 seconds
+        then:
+            set {_effModifier} to {temp.resistanceEffects::%type of loop-potion effect%}
+            
+            # Always check for universal resist
+            if all: # If modifier is ]1,2] then resist all
+                {_effModifier} is greater than 1
+                {_effModifier} is less than or equal to 2
+            then:
+                set {_resPerc} to {_resPerc} * (2 - {_effModifier}) ^ potion tier of loop-potion effect
+                set {_resistingCold} to true
+                set {_resistingHot} to true
+            
+            # Only check for hot/cold resist if temperature warrants resistance
+            if {_currTemp} is less than {@idealTemp}: # if player is cold. If player isn't cold, no resistance needed
+                if all: # If modifier is [-1,0[ then resist cold
+                    {_effModifier} is greater than or equal to -1
+                    {_effModifier} is less than 0
+                then:
+                    set {_resPerc} to {_resPerc} * (1 - abs({_effModifier})) ^ potion tier of loop-potion effect
+                    set {_resistingCold} to true
+            else if {_currTemp} is greater than {@idealTemp}: # if player is hot. If player isn't hot, no resistance needed
+                if all: # If modifier is ]0,1] then resist hot
+                    {_effModifier} is greater than 0
+                    {_effModifier} is less than or equal to 1
+                then:
+                    set {_resPerc} to {_resPerc} * (1 - {_effModifier}) ^ potion tier of loop-potion effect
+                    set {_resistingHot} to true
+            
+            set {_currTemp} to ({_currTemp} - {@idealTemp})*{_resPerc} + {@idealTemp}
+            if all:
+                {_currTemp} is less than {@minTempWhileResisting}
+                {_resistingCold} is true
+            then:
+                set {_currTemp} to {@minTempWhileResisting}
+            else if all:
+                {_currTemp} is greater than {@maxTempWhileResisting}
+                {_resistingHot} is true
+            then:
+                set {_currTemp} to {@maxTempWhileResisting}
+    
+    set {temp.resistanceEffects.debug.resistInfo} to "%(1 - {_resPerc}) * 100%%% "
+    set {temp.resistanceEffects.debug.resistInfo} to {temp.resistanceEffects.debug.resistInfo} + "&bC" if {_resistingCold} is true else {temp.resistanceEffects.debug.resistInfo} + " "
+    set  {temp.resistanceEffects.debug.resistInfo} to {temp.resistanceEffects.debug.resistInfo} + "&cH" if {_resistingHot} is true else {temp.resistanceEffects.debug.resistInfo} + " "
+    return {_currTemp}
+
 
 #######################################
 # Misc Commands
