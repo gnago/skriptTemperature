@@ -56,26 +56,11 @@ options:
     
     ### Resisting ###
     idealTemp: 75 # This is used as the target temperature when resisting. The more you resist, the closer to idealTemp you get
-    minTempWhileResisting: -22
-    maxTempWhileResisting: 104
+    minTempWhileResisting: 10
+    maxTempWhileResisting: 90
 
-#######
-# Factors Implemented:
-# Sunlight level/Biome ✔
-# Weather ✔
-# Water ✔
-# Wetness ✔ (This is important because water is initially cooling instantly (dangerously freezing when cold, instantly refreshing when hot), but after you get out you maintain the refreshing feeling/dangerous cold for a while, so it can't degrade immediately.
-# nearby blocks ✔
-# held item ✔
-# clothing ✔
-# Activity ✔ Add jumping, sleeping, and flying/gliding?
-# Food : Maybe same implementation as potions. General consumable implementation.
-# Fire resistance and potions ✔
-# Gradual temp increase ✔ (Maybe show two numbers: Real temp and current temp. Current temp is used for debuffs/effects). Probably a good idea to make the speed of the temp change dependant on the source (e.g. sunlight heat will increase more slowly than block heat)
-# Add Debuffs : Just add the system for now. Need others' input for which debbuffs to add. Should allow for potion effects (e.g. slowness), whatever freezing is (condition?), look into placeholderAPI for thirst implementation
-
-on load:
-    
+function tempBlocksConfig():
+    delete {temp.blocks::*}
     # Set temperature values for temperature blocks
     # These numbers are the maximum that your temperature can increase by being around them. Realistically being around one of these blocks will change your temperature by about 1/4 of the amount
     set {temp.blocks::lava} to 100
@@ -112,7 +97,9 @@ on load:
     set {temp.blocks::ice} to -9
     set {temp.blocks::packed ice} to -18
     set {temp.blocks::blue ice} to -36
-    
+
+function tempItemsConfig():
+    delete {temp.items::*}
     # Set temperature values for temperature blocks
     # These numbers are the maximum that your temperature can increase by being around them. Realistically being around one of these blocks will change your temperature by about 1/4 of the amount
     set {temp.items::lava bucket} to 18
@@ -147,7 +134,9 @@ on load:
     set {temp.items::ice} to -6
     set {temp.items::packed ice} to -12
     set {temp.items::blue ice} to -24
-    
+
+function tempResistanceEffectsConfig():
+    delete {temp.resistanceEffects::*}
     # Potion effects that resist temperature
     # [-1,0[ = resist cold temperatures by absolute value * 100 % (e.g. -0.7 will resist 70% of the cold)
     # ] 0,1] = resist hot temperatures by value * 100 % (e.g. 0.7 will resist 70% of the heat)
@@ -155,12 +144,34 @@ on load:
     set {temp.resistanceEffects::fire resistance} to 0.7
     set {temp.resistanceEffects::night vision} to -0.7
     set {temp.resistanceEffects::resistance} to 1.55
+
+function tempDebuffsConfig():
+    delete {temp.debuffs::*}
+    # Debuffs
+    set {temp.debuffs::122} to "burn"
+    set {temp.debuffs::119} to "blindness:1"
+    set {temp.debuffs::112} to "nausea:1"
+    set {temp.debuffs::100} to "hunger:1"
+    set {temp.debuffs::95} to "weakness:1"
+    
+    set {temp.debuffs::10} to "weakness:1"
+    set {temp.debuffs::-4} to "slowness:1"
+    set {temp.debuffs::-13} to "mining fatigue:1"
+    set {temp.debuffs::-22} to "darkness:1,slowness:2"
+    set {temp.debuffs::-32} to "freeze"
+
+on load:
+    tempBlocksConfig()
+    tempItemsConfig()
+    tempResistanceEffectsConfig()
+    tempDebuffsConfig()
     
     #reset the loop
     set {temp.enabled} to false
     wait "%{@tempRefreshRate} + 1% ticks" parsed as timespan
     set {temp.enabled} to true
     startTemperatureLoop()
+
 
 #######################################
 # MAIN LOOP / TOTALS / DISPLAY
@@ -174,6 +185,10 @@ function startTemperatureLoop():
             set {_actualTemp} to {temp.players.%loop-player%.actualTemp.total}
             set {_feelTemp} to {temp.players.%loop-player%.feelTemp.total}
             
+            ### Debuffs
+            getDebuffs(loop-player,{_feelTemp})
+            
+            ### Display
             set {_displayTemp} to "%{_feelTemp}% °F"
             if {temp.players.%loop-player%.showActual} is set:
                 add " / %{_actualTemp}% °F" to {_displayTemp}
@@ -309,6 +324,40 @@ function calcLogGradual(feel: number, actual: number, rate: number) :: number:
 
     return {_feel} + {_change}
 
+####################################
+# DEBUFFS
+####################################
+function getDebuffs(plr: player, temp: number):
+    delete {temp.players.%{_plr}%.debuffs::*}
+    
+    # loop through debuff list and see if any of their criteria are met. If yes, add them to the player's debuff list
+    loop {temp.debuffs::*}:
+        set {_ind} to loop-index parsed as number
+        if all:
+            {_ind} is greater than {@idealTemp}
+            {_temp} is greater than {_ind}
+        then:
+            #send "&c%loop-value%" to {_plr}
+            loop loop-value split at ",":
+                add loop-value-2 to {temp.players.%{_plr}%.debuffs::*}
+        if all:
+            {_ind} is less than {@idealTemp}
+            {_temp} is less than {_ind}
+        then:
+            #send "&b%loop-index%" to {_plr}
+            loop loop-value split at ",":
+                add loop-value-2 to {temp.players.%{_plr}%.debuffs::*}
+    if {temp.players.%{_plr}%.debuffs::*} contains "freeze":
+        set {_plr}'s freeze time to 200 ticks
+        
+    if {temp.players.%{_plr}%.debuffs::*} contains "burn":
+        ignite {_plr} for 1 second
+    
+    loop {temp.players.%{_plr}%.debuffs::*}:
+        set {_potInfo::*} to loop-value split at ":"
+        set {_potType} to {_potInfo::1} parsed as potion effect type
+        if potion effect types contains {_potType}:
+            apply ambient {_potType} of tier {_potInfo::2} parsed as number without particles to {_plr} for 8 seconds replacing the existing effect
 
 ####################################
 # BIOMES / SUNLIGHT
@@ -508,6 +557,19 @@ function calcStateTemp(plr: player) :: number:
     return {_temp}
 
 # Clothing/Equipment
+function calcHeldItemTemp(plr: player) :: number:
+    set {_temp} to 0
+    
+    set {_held} to "%{_plr}'s tool%"
+    set {_offhand} to "%{_plr}'s offhand tool%"
+    if {temp.items::%{_held}%} is set:
+        add {temp.items::%{_held}%} to {_temp}
+    if {temp.items::%{_offhand}%} is set:
+        add {temp.items::%{_offhand}%} to {_temp}
+    
+    return {_temp}
+
+# Might make clothing resistance based later
 function calcClothingTemp(plr: player) :: number:
     set {_clothingTemp} to 0
 
@@ -532,18 +594,6 @@ function calcClothingTemp(plr: player) :: number:
         add 2.5 to {_clothingTemp}
     
     return {_clothingTemp}
-
-function calcHeldItemTemp(plr: player) :: number:
-    set {_temp} to 0
-    
-    set {_held} to "%{_plr}'s tool%"
-    set {_offhand} to "%{_plr}'s offhand tool%"
-    if {temp.items::%{_held}%} is set:
-        add {temp.items::%{_held}%} to {_temp}
-    if {temp.items::%{_offhand}%} is set:
-        add {temp.items::%{_offhand}%} to {_temp}
-    
-    return {_temp}
 
 #######################################
 # CONSUMABLES
@@ -607,7 +657,6 @@ function calcResistanceEffects(plr: player, temp: number):: number:
     set  {temp.resistanceEffects.debug.resistInfo} to {temp.resistanceEffects.debug.resistInfo} + "&cH" if {_resistingHot} is true else {temp.resistanceEffects.debug.resistInfo} + " "
     return {_currTemp}
 
-
 #######################################
 # Misc Commands
 #######################################
@@ -615,6 +664,7 @@ function FahrToCel(f: number) :: number:
     return ({_f}-32)*5/9
 
 command /tempdebugboard:
+    permission: server.admin
     trigger:
         if {temp.players.%player%.debugModeOn} is not set:
             set {temp.players.%player%.debugModeOn} to true
@@ -624,16 +674,16 @@ command /tempdebugboard:
             clear fastboard of player # Clear in case we are removing lines from board and want them gone
             toggle fastboard of player off
 
-
-command /tempshowbar:
+command /tempdebugitems:
+    permission: server.admin
     trigger:
-        if {temp.players.%player%.bossbar} is set:
-            delete bossbar with id "%player's name%_temperature"
-            delete {temp.players.%player%.bossbar}
+        if {temp.players.%player%.debugModeOn.items} is not set:
+            set {temp.players.%player%.debugModeOn.items} to true
+            set {temp.items::lava bucket} to 1000
+            set {temp.items::blue ice} to -1000
         else:
-            set {temp.players.%player%.bossbar} to bossbar with id "%player's name%_temperature" with title "Measuring..."
-            add player to {temp.players.%player%.bossbar}
-            set bar visibility of {temp.players.%player%.bossbar} to true
+            delete {temp.players.%player%.debugModeOn.items}
+            tempItemsConfig()
 
 command /temptoggle:
     permission: server.admin
@@ -645,6 +695,16 @@ command /temptoggle:
             set {temp.enabled} to true
             send "enabled temperature" to player
             startTemperatureLoop()
+
+command /tempshowbar:
+    trigger:
+        if {temp.players.%player%.bossbar} is set:
+            delete bossbar with id "%player's name%_temperature"
+            delete {temp.players.%player%.bossbar}
+        else:
+            set {temp.players.%player%.bossbar} to bossbar with id "%player's name%_temperature" with title "Measuring..."
+            add player to {temp.players.%player%.bossbar}
+            set bar visibility of {temp.players.%player%.bossbar} to true
 
 command /temptoggleunits:
     trigger:
@@ -664,3 +724,20 @@ command /temptoggleActual:
             delete {temp.players.%player%.showActual}
             send "Hiding ""Actual Temperature""" to player
 
+
+
+#######
+# Factors Implemented:
+# Sunlight level/Biome ✔
+# Weather ✔
+# Water ✔
+# Wetness ✔ (This is needed because water is initially cooling instantly (dangerously freezing when cold, instantly refreshing when hot), but after you get out you maintain the refreshing feeling/dangerous cold for a while, so it can't degrade immediately.
+# nearby blocks ✔
+# held item ✔
+# clothing ✔
+# Activity ✔ Add jumping, sleeping, and flying/gliding?
+# Food : Maybe same implementation as potions. General consumable implementation.
+# Fire resistance and potions ✔
+# Gradual temp increase ✔ (Maybe show two numbers: Real temp and current temp. Current temp is used for debuffs/effects). Probably a good idea to make the speed of the temp change dependant on the source (e.g. sunlight heat will increase more slowly than block heat)
+# Add Debuffs ✔ Just add the system for now. Need others' input for which debuffs to add. Should allow for potion effects (e.g. slowness), whatever freezing is (condition?), look into placeholderAPI for thirst implementation
+#custom thermometre item (clock reskin) : Should reflect actual temperature
