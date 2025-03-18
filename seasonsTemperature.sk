@@ -17,6 +17,7 @@
 
 options:
     tempRefreshRate: 20 # In ticks
+    thermometerItem: clock # item to use to show temperature bar when held
     
     caveAndIndoorTemp: 64 # In Fahrenheit
     #sunlightModifier: 2.5 # How strong shade/lack of sun level is. The higher, the more each lack of sky light level brings the player closer to caveAndIndoorTemp. DO NOT SET TO 0 !!! https://www.desmos.com/calculator/nzgxcvvo3j
@@ -55,7 +56,7 @@ options:
     useWetnessTempDegradation: 1 # temp change from being wet = wetnessTemp * wetness level/maxWetness. 0 for false, 1 for true
     
     ### Resisting ###
-    idealTemp: 75 # This is used as the target temperature when resisting. The more you resist, the closer to idealTemp you get
+    idealTemp: 75 # This is used as the target temperature when resisting. The more you resist, the closer you get to idealTemp
     minTempWhileResisting: 10
     maxTempWhileResisting: 90
 
@@ -148,9 +149,9 @@ function tempResistanceEffectsConfig():
 function tempDebuffsConfig():
     delete {temp.debuffs::*}
     # Debuffs
-    set {temp.debuffs::122} to "burn"
-    set {temp.debuffs::119} to "blindness:1"
-    set {temp.debuffs::112} to "nausea:1"
+    set {temp.debuffs::136} to "burn"
+    set {temp.debuffs::122} to "blindness:1"
+    set {temp.debuffs::116} to "nausea:1"
     set {temp.debuffs::100} to "hunger:1"
     set {temp.debuffs::95} to "weakness:1"
     
@@ -186,17 +187,28 @@ function startTemperatureLoop():
             set {_feelTemp} to {temp.players.%loop-player%.feelTemp.total}
             
             ### Debuffs
-            getDebuffs(loop-player,{_feelTemp})
+            if {temp.players.%loop-player%.debugModeOn.debuffs} is true:
+                getDebuffs(loop-player,{_feelTemp})
             
             ### Display
-            set {_displayTemp} to "%{_feelTemp}% °F"
-            if {temp.players.%loop-player%.showActual} is set:
-                add " / %{_actualTemp}% °F" to {_displayTemp}
-            if {temp.players.%loop-player%.useCelcius} is set:
-                set {_displayTemp} to "%FahrToCel({_feelTemp})% °C"
+            if any:
+                {temp.alwaysShowTempBar} is set
+                loop-player's tool is {@thermometerItem}
+                loop-player's off hand tool is {@thermometerItem}
+            then:
+                tempshowbar(loop-player, true)
+            else:
+                tempshowbar(loop-player, false)
+            
+            if {temp.players.%loop-player%.bossbar} is set:
+                set {_displayTemp} to "%{_feelTemp}% °F"
                 if {temp.players.%loop-player%.showActual} is set:
-                    add " / %FahrToCel({_actualTemp})% °C" to {_displayTemp}
-            set bar title of {temp.players.%loop-player%.bossbar} to "Temp: %{_displayTemp}%"
+                    add " / %{_actualTemp}% °F" to {_displayTemp}
+                if {temp.players.%loop-player%.useCelcius} is set:
+                    set {_displayTemp} to "%FahrToCel({_feelTemp})% °C"
+                    if {temp.players.%loop-player%.showActual} is set:
+                        add " / %FahrToCel({_actualTemp})% °C" to {_displayTemp}
+                set bar title of {temp.players.%loop-player%.bossbar} to "Temp: %{_displayTemp}%"
             
             if {_feelTemp} is greater than 180:
                 set bar color of {temp.players.%loop-player%.bossbar} to pink
@@ -357,7 +369,7 @@ function getDebuffs(plr: player, temp: number):
         set {_potInfo::*} to loop-value split at ":"
         set {_potType} to {_potInfo::1} parsed as potion effect type
         if potion effect types contains {_potType}:
-            apply ambient {_potType} of tier {_potInfo::2} parsed as number without particles to {_plr} for 8 seconds replacing the existing effect
+            apply ambient {_potType} of tier {_potInfo::2} parsed as number without particles without the icon to {_plr} for 8 seconds replacing the existing effect
 
 ####################################
 # BIOMES / SUNLIGHT
@@ -674,7 +686,7 @@ command /tempdebugboard:
             clear fastboard of player # Clear in case we are removing lines from board and want them gone
             toggle fastboard of player off
 
-command /tempdebugitems:
+command /tempdebugextremeitems:
     permission: server.admin
     trigger:
         if {temp.players.%player%.debugModeOn.items} is not set:
@@ -696,15 +708,25 @@ command /temptoggle:
             send "enabled temperature" to player
             startTemperatureLoop()
 
-command /tempshowbar:
+command /tempdebugdebuff:
+    permission: server.admin
     trigger:
-        if {temp.players.%player%.bossbar} is set:
-            delete bossbar with id "%player's name%_temperature"
-            delete {temp.players.%player%.bossbar}
+        if {temp.players.%player%.debugModeOn.debuffs} is not set:
+            set {temp.players.%player%.debugModeOn.debuffs} to true
+            send "Debuffs are &2enabled" to player
         else:
-            set {temp.players.%player%.bossbar} to bossbar with id "%player's name%_temperature" with title "Measuring..."
-            add player to {temp.players.%player%.bossbar}
-            set bar visibility of {temp.players.%player%.bossbar} to true
+            delete {temp.players.%player%.debugModeOn.debuffs}
+            send "Debuffs are &cdisabled" to player
+
+command /tempshowbaralways:
+    permission: server.admin
+    trigger:
+        if {temp.alwaysShowTempBar} is not set:
+            set {temp.alwaysShowTempBar} to true
+            send "Temperature bar now always shows" to player
+        else:
+            delete {temp.alwaysShowTempBar}
+            send "Temperature bar now shows only when holding thermometer item" to player
 
 command /temptoggleunits:
     trigger:
@@ -724,7 +746,16 @@ command /temptoggleActual:
             delete {temp.players.%player%.showActual}
             send "Hiding ""Actual Temperature""" to player
 
-
+function tempshowbar(plr: player, show: boolean):
+    if {_show} is false:
+        if {temp.players.%{_plr}%.bossbar} is set:
+            delete bossbar with id "%{_plr}'s name%_temperature"
+            delete {temp.players.%{_plr}%.bossbar}
+    else:
+        if {temp.players.%{_plr}%.bossbar} is not set:
+            set {temp.players.%{_plr}%.bossbar} to bossbar with id "%{_plr}'s name%_temperature" with title "Measuring..."
+            add {_plr} to {temp.players.%{_plr}%.bossbar}
+            set bar visibility of {temp.players.%{_plr}%.bossbar} to true
 
 #######
 # Factors Implemented:
