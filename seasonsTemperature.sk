@@ -344,7 +344,7 @@ function calcLogGradual(feel: number, actual: number, rate: number) :: number:
 ####################################
 # DEBUFFS
 ####################################
-function getDebuffs(plr: player, temp: number):            
+function getDebuffs(plr: player, temp: number):
     delete {temp.players.%{_plr}%.debuffs::*}
     
     # loop through debuff list and see if any of their criteria are met. If yes, add them to the player's debuff list
