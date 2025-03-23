@@ -17,7 +17,9 @@
 
 options:
     tempRefreshRate: 20 # In ticks
-    thermometerItem: clock # item to use to show temperature bar when held
+    thermometerCondition: is of type {seasons.customItems::thermometer}
+
+    debuffGracePeriod: 9 # The amount of seconds someone can be past the temperature threshold before suffering from debuffs
     
     caveAndIndoorTemp: 64 # In Fahrenheit
     #sunlightModifier: 2.5 # How strong shade/lack of sun level is. The higher, the more each lack of sky light level brings the player closer to caveAndIndoorTemp. DO NOT SET TO 0 !!! https://www.desmos.com/calculator/nzgxcvvo3j
@@ -37,14 +39,14 @@ options:
     # Think of it as "what % of the effect do you feel immediately?" then it just slowly gets closer to the real temp from there (though larger % will always lead to a faster rate)
     # Use this graph to help visualize your numbers https://www.desmos.com/calculator/rv6lg0hwbg
     
-    sunlightRate: 0.15
-    weatherRate: 0.20
-    waterRate: 0.80
-    environmentRate: 0.70
+    sunlightRate: 0.08
+    weatherRate: 0.1
+    waterRate: 0.75
+    environmentRate: 0.15
     clothingRate: 0.25
-    heldItemRate: 0.85
+    heldItemRate: 0.7
     activityRate: 0.02
-    stateRate: 1
+    stateRate: 0.8
     
     ### Wetness Variable ###
     # Wetness determines how long after exiting water/rain a player will continue to feel effects of being wet
@@ -64,31 +66,34 @@ function tempBlocksConfig():
     delete {temp.blocks::*}
     # Set temperature values for temperature blocks
     # These numbers are the maximum that your temperature can increase by being around them. Realistically being around one of these blocks will change your temperature by about 1/4 of the amount
-    set {temp.blocks::lava} to 100
-    set {temp.blocks::lava cauldron} to 84
-    set {temp.blocks::soul campfire} to 70
-    set {temp.blocks::campfire} to 68
-    set {temp.blocks::fire} to 50
-    set {temp.blocks::furnace} to 48
-    set {temp.blocks::blast furnace} to 48
-    set {temp.blocks::smoker} to 48
-    set {temp.blocks::magma block} to 36
-    set {temp.blocks::soul torch} to 20
-    set {temp.blocks::soul lantern} to 16
-    set {temp.blocks::torch} to 16
-    set {temp.blocks::lantern} to 12
-    set {temp.blocks::brewing stand} to 12
-    set {temp.blocks::jack o lantern} to 12
-    set {temp.blocks::candle} to 4
-    set {temp.blocks::torchflower} to 6
-    set {temp.blocks::beacon} to 6
-    set {temp.blocks::glowstone} to 4
-    set {temp.blocks::creaking heart} to 3
-    set {temp.blocks::redstone block} to 6
-    set {temp.blocks::redstone torch} to 3
-    set {temp.blocks::redstone lamp} to 2
-    set {temp.blocks::redstone ore} to 2
-    set {temp.blocks::deepslate redstone ore} to 2
+    set {temp.blocks::lava} to 50
+    set {temp.blocks::lava cauldron} to 46
+    set {temp.blocks::soul campfire} to 30
+    set {temp.blocks::campfire} to 26
+    set {temp.blocks::fire} to 26
+    set {temp.blocks::magma block} to 21
+    set {temp.blocks::furnace} to 20
+    set {temp.blocks::blast furnace} to 20
+    set {temp.blocks::smoker} to 20
+    set {temp.blocks::brewing stand} to 6.4
+    set {temp.blocks::soul torch} to 5
+    set {temp.blocks::soul wall torch} to {temp.blocks::soul torch}
+    set {temp.blocks::soul lantern} to 4
+    set {temp.blocks::torch} to 3.5
+    set {temp.blocks::wall torch} to {temp.blocks::torch}
+    set {temp.blocks::lantern} to 2.5
+    set {temp.blocks::jack o lantern} to 2.2
+    set {temp.blocks::candle} to 1.25
+    set {temp.blocks::torchflower} to 1.1
+    set {temp.blocks::beacon} to 1.8
+    set {temp.blocks::glowstone} to 1.1
+    set {temp.blocks::creaking heart} to 0.6
+    set {temp.blocks::redstone block} to 2.8
+    set {temp.blocks::redstone torch} to 1.6
+    set {temp.blocks::redstone wall torch} to {temp.blocks::redstone torch}
+    set {temp.blocks::redstone lamp} to 1.6
+    set {temp.blocks::redstone ore} to 1.2
+    set {temp.blocks::deepslate redstone ore} to {temp.blocks::redstone ore}
     set {temp.blocks::wet sponge} to -0.8
     set {temp.blocks::water} to -1.5
     set {temp.blocks::snow} to -3
@@ -149,17 +154,17 @@ function tempResistanceEffectsConfig():
 function tempDebuffsConfig():
     delete {temp.debuffs::*}
     # Debuffs
-    set {temp.debuffs::136} to "burn"
-    set {temp.debuffs::122} to "blindness:1"
-    set {temp.debuffs::116} to "nausea:1"
-    set {temp.debuffs::100} to "hunger:1"
-    set {temp.debuffs::95} to "weakness:1"
+    set {temp.debuffs::burn} to 136
+    set {temp.debuffs::blindness,1} to 122
+    set {temp.debuffs::nausea,1} to 116
+    set {temp.debuffs::hunger,1} to 100
+    set {temp.debuffs::weakness,1} to "18,95"
     
-    set {temp.debuffs::10} to "weakness:1"
-    set {temp.debuffs::-4} to "slowness:1"
-    set {temp.debuffs::-13} to "mining fatigue:1"
-    set {temp.debuffs::-22} to "darkness:1,slowness:2"
-    set {temp.debuffs::-32} to "freeze"
+    set {temp.debuffs::slowness,1} to -4
+    set {temp.debuffs::mining fatigue,1} to -13
+    set {temp.debuffs::slowness,2} to -22
+    set {temp.debuffs::darkness,1} to -22
+    set {temp.debuffs::freeze} to -32
 
 on load:
     tempBlocksConfig()
@@ -189,12 +194,12 @@ function startTemperatureLoop():
             ### Debuffs
             if {temp.players.%loop-player%.debugModeOn.debuffs} is true:
                 getDebuffs(loop-player,{_feelTemp})
-            
+
             ### Display
             if any:
                 {temp.alwaysShowTempBar} is set
-                loop-player's tool is {@thermometerItem}
-                loop-player's off hand tool is {@thermometerItem}
+                loop-player's tool {@thermometerCondition}
+                loop-player's off hand tool  {@thermometerCondition}
             then:
                 tempshowbar(loop-player, true)
             else:
@@ -208,7 +213,7 @@ function startTemperatureLoop():
                     set {_displayTemp} to "%FahrToCel({_feelTemp})% °C"
                     if {temp.players.%loop-player%.showActual} is set:
                         add " / %FahrToCel({_actualTemp})% °C" to {_displayTemp}
-                set bar title of {temp.players.%loop-player%.bossbar} to "Temp: %{_displayTemp}%"
+                set bar title of {temp.players.%loop-player%.bossbar} to "%{_displayTemp}%"
             
             if {_feelTemp} is greater than 180:
                 set bar color of {temp.players.%loop-player%.bossbar} to pink
@@ -344,21 +349,51 @@ function getDebuffs(plr: player, temp: number):
     
     # loop through debuff list and see if any of their criteria are met. If yes, add them to the player's debuff list
     loop {temp.debuffs::*}:
-        set {_ind} to loop-index parsed as number
-        if all:
-            {_ind} is greater than {@idealTemp}
-            {_temp} is greater than {_ind}
-        then:
-            #send "&c%loop-value%" to {_plr}
-            loop loop-value split at ",":
-                add loop-value-2 to {temp.players.%{_plr}%.debuffs::*}
-        if all:
-            {_ind} is less than {@idealTemp}
-            {_temp} is less than {_ind}
-        then:
-            #send "&b%loop-index%" to {_plr}
-            loop loop-value split at ",":
-                add loop-value-2 to {temp.players.%{_plr}%.debuffs::*}
+        delete {_thresholds::*} # Reset for the current debuff
+        loop "%loop-value%" split at ",": # Split in case it's a string (meaning multiple thresholds). Make a string in case it is already a number
+            add loop-value-2 parsed as number to {_thresholds::*}
+        
+        loop {_thresholds::*}:
+            set {_threshold} to loop-value-2
+            
+            ## Check and apply hot debuffs
+            if {_threshold} is greater than {@idealTemp}: # Check if hot debuff
+                if {_temp} is greater than {_threshold}: # Check if it crosses threshold
+                    if {temp.players.%{_plr}%.debuffTimers::%loop-index-1%} is set:
+                        if {temp.players.%{_plr}%.debuffTimers::%loop-index-1%} is less than or equal to 0:
+                            add loop-index-1 to {temp.players.%{_plr}%.debuffs::*}
+                        else:
+                            add -1 to {temp.players.%{_plr}%.debuffTimers::%loop-index-1%} # Countdown
+                            #send "&4You will get %loop-index-1% in %{temp.players.%{_plr}%.debuffTimers::%loop-index-1%}%..." to {_plr}
+                    else:
+                        #send "%loop-index-1% countdown starting" to {_plr}
+                        set {temp.players.%{_plr}%.debuffTimers::%loop-index-1%} to {@debuffGracePeriod}
+                else if {temp.players.%{_plr}%.debuffTimers::%loop-index-1%} is less than or equal to 0:
+                    if any: # Check to make sure that we're not wiping the cold threshold's debuff
+                        size of {_thresholds::*} is 1 # There won't be a cold threshold if hot is the only one
+                        {_temp} is not less than min({_thresholds::*}) # Make sure not to wipe cold threshold's debuff
+                    then:
+                        #send "You are cured from hot %loop-index-1%. MinThres %min({_thresholds::*})%" to {_plr}
+                        delete {temp.players.%{_plr}%.debuffTimers::%loop-index-1%}
+            else if {_threshold} is less than {@idealTemp}: # Check if cold debuff
+                if {_temp} is less than {_threshold}: # Check if it crosses the threshold
+                    if {temp.players.%{_plr}%.debuffTimers::%loop-index-1%} is set:
+                        if {temp.players.%{_plr}%.debuffTimers::%loop-index-1%} is less than or equal to 0:
+                            add loop-index-1 to {temp.players.%{_plr}%.debuffs::*}
+                        else:
+                            add -1 to {temp.players.%{_plr}%.debuffTimers::%loop-index-1%} # Countdown
+                            send "&4You will get %loop-index-1% in %{temp.players.%{_plr}%.debuffTimers::%loop-index-1%}%..." to {_plr}
+                    else:
+                        #send "%loop-index-1% countdown starting" to {_plr}
+                        set {temp.players.%{_plr}%.debuffTimers::%loop-index-1%} to {@debuffGracePeriod}
+                else if {temp.players.%{_plr}%.debuffTimers::%loop-index-1%} is less than or equal to 0:
+                    if any: # Check to make sure that we're not wiping the hot threshold's debuff
+                        size of {_thresholds::*} is 1 # There won't be a hot threshold if cold is the only one
+                        {_temp} is not greater than max({_thresholds::*}) # Make sure not to wipe hot threshold's debuff
+                    then:
+                        #send "You are cured from cold %loop-index-1%. MaxThres: %max({_thresholds::*})%" to {_plr}
+                        delete {temp.players.%{_plr}%.debuffTimers::%loop-index-1%}
+    
     if {temp.players.%{_plr}%.debuffs::*} contains "freeze":
         set {_plr}'s freeze time to 200 ticks
         
@@ -366,10 +401,10 @@ function getDebuffs(plr: player, temp: number):
         ignite {_plr} for 1 second
     
     loop {temp.players.%{_plr}%.debuffs::*}:
-        set {_potInfo::*} to loop-value split at ":"
+        set {_potInfo::*} to loop-value split at ","
         set {_potType} to {_potInfo::1} parsed as potion effect type
         if potion effect types contains {_potType}:
-            apply ambient {_potType} of tier {_potInfo::2} parsed as number without particles without the icon to {_plr} for 8 seconds replacing the existing effect
+            apply ambient {_potType} of tier {_potInfo::2} parsed as number without particles to {_plr} for 8 seconds replacing the existing effect
 
 ####################################
 # BIOMES / SUNLIGHT
@@ -401,8 +436,8 @@ function calcTimeHeat(time: number, biomeTemp: number, biomeHumidity: number) ::
     
     return 10 * cos((pi*({_time}-{@timePeakTempTime})/1200) * 180/pi) * {_h} * ({_ab}+1) * ({_b}+1) + 32*{_b}*{_ab}/{_h} + 32 * ({_b} + 1 - {_ab})
 
-function getTime(plr: player) :: number:
-    set {_time} to "%(time in {_plr}'s world)%"
+function getTime(ent: entity) :: number:
+    set {_time} to "%(time in {_ent}'s world)%"
     #send "Bad time: %{_time}%" to player
     set {_timeSections::*} to {_time} split at ":"
     set {_hoursStr} to {_timeSections::1}
@@ -670,11 +705,57 @@ function calcResistanceEffects(plr: player, temp: number):: number:
     return {_currTemp}
 
 #######################################
-# Misc Commands
+# Misc
 #######################################
 function FahrToCel(f: number) :: number:
     return ({_f}-32)*5/9
 
+function ToggleUnits(plr: player):
+    if {temp.players.%{_plr}%.useCelcius} is not set:
+        set {temp.players.%{_plr}%.useCelcius} to true
+        send "Now using °C" to {_plr}
+    else:
+        delete {temp.players.%{_plr}%.useCelcius}
+        send "Now using °F" to {_plr}
+
+function ToggleActual(plr: player):
+    if {temp.players.%{_plr}%.showActual} is not set:
+        set {temp.players.%{_plr}%.showActual} to true
+        send "Now additionally showing ""Actual Temperature""" to {_plr}
+    else:
+        delete {temp.players.%{_plr}%.showActual}
+        send "Hiding ""Actual Temperature""" to {_plr}
+
+on right click with recovery compass on air:
+    if {temp.players.%event-player%.thermometerLocked} is not set:
+        if any:
+            event-player's tool {@thermometerCondition}
+            event-player's off hand tool {@thermometerCondition}
+        then:
+            if event-player is sneaking:
+                ToggleActual(event-player)
+            else:
+                ToggleUnits(event-player)
+
+command /temptoggleunits:
+    trigger:
+        ToggleUnits(player)
+
+command /temptoggleactual:
+    trigger:
+        ToggleActual(player)
+
+command /templockthermometer:
+    aliases: /lockthermometer
+    trigger:
+        if {temp.players.%player%.thermometerLocked} is not set:
+            set {temp.players.%player%.thermometerLocked} to true
+            send "Thermometer will no longer switch modes on right-click. You can stll use /temptoggleunits and /temptoggleactual." to player
+        else:
+            delete {temp.players.%player%.thermometerLocked}
+            send "Thermometer will now change units on right-click, and toggle actual temperature on right-click while sneaking." to player
+
+### Debug Commands
 command /tempdebugboard:
     permission: server.admin
     trigger:
@@ -727,24 +808,6 @@ command /tempshowbaralways:
         else:
             delete {temp.alwaysShowTempBar}
             send "Temperature bar now shows only when holding thermometer item" to player
-
-command /temptoggleunits:
-    trigger:
-        if {temp.players.%player%.useCelcius} is not set:
-            set {temp.players.%player%.useCelcius} to true
-            send "Now using °C" to player
-        else:
-            delete {temp.players.%player%.useCelcius}
-            send "Now using °F" to player
-
-command /temptoggleActual:
-    trigger:
-        if {temp.players.%player%.showActual} is not set:
-            set {temp.players.%player%.showActual} to true
-            send "Now additionally showing ""Actual Temperature""" to player
-        else:
-            delete {temp.players.%player%.showActual}
-            send "Hiding ""Actual Temperature""" to player
 
 function tempshowbar(plr: player, show: boolean):
     if {_show} is false:
