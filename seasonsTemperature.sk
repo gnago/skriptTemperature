@@ -22,7 +22,7 @@ options:
     debuffGracePeriod: 9 # The amount of seconds someone can be past the temperature threshold before suffering from debuffs
     
     caveAndIndoorTemp: 64 # In Fahrenheit
-    #sunlightModifier: 2.5 # How strong shade/lack of sun level is. The higher, the more each lack of sky light level brings the player closer to caveAndIndoorTemp. DO NOT SET TO 0 !!! https://www.desmos.com/calculator/nzgxcvvo3j
+    #sunlightModifier: 2 # How strong shade/lack of sun level is. The higher, the more each lack of sky light level brings the player closer to caveAndIndoorTemp. DO NOT SET TO 0 !!! https://www.desmos.com/calculator/7cythjt1ib
     timePeakTempTime: 1400 # Time of day when the temperature is highest
     environmentRange: 5 # Range where blocks will affect the player's temperature
     inWaterModifier: -24 # How much colder water is at the surface
@@ -61,6 +61,16 @@ options:
     idealTemp: 75 # This is used as the target temperature when resisting. The more you resist, the closer you get to idealTemp
     minTempWhileResisting: 10
     maxTempWhileResisting: 90
+
+    # Hunger Resisting #
+    hungerMidPoint: 3.5 # out of 10
+    hungerMaxResistanceAmt: 0.08
+    hungerMaxVulnAmt: 0.4
+    
+    # Thirst Resisting #
+    thirstMidPoint: 40 # out of 100
+    thirstMaxResistanceAmt: 0.2
+    thirstMaxVulnAmt: 0.3
 
 function tempBlocksConfig():
     delete {temp.blocks::*}
@@ -154,13 +164,13 @@ function tempResistanceEffectsConfig():
 function tempDebuffsConfig():
     delete {temp.debuffs::*}
     # Debuffs
-    set {temp.debuffs::burn} to 136
+    set {temp.debuffs::burn} to 140
+    set {temp.debuffs::nausea,1} to 131
     set {temp.debuffs::blindness,1} to 122
-    set {temp.debuffs::nausea,1} to 116
-    set {temp.debuffs::hunger,1} to 100
-    set {temp.debuffs::weakness,1} to "18,95"
+    set {temp.debuffs::hunger,1} to 95
+    set {temp.debuffs::weakness,1} to "32,104"
     
-    set {temp.debuffs::slowness,1} to -4
+    set {temp.debuffs::slowness,1} to 41
     set {temp.debuffs::mining fatigue,1} to -13
     set {temp.debuffs::slowness,2} to -22
     set {temp.debuffs::darkness,1} to -22
@@ -245,7 +255,7 @@ function startTemperatureLoop():
                 set line 11 of loop-player's fastboard to "&7State:&r %{temp.players.%loop-player%.feelTemp.stateTemp}%/%{temp.players.%loop-player%.actualTemp.stateTemp}%"
                 set line 12 of loop-player's fastboard to "&7Tool:&r %{temp.players.%loop-player%.feelTemp.heldItemTemp}%/%{temp.players.%loop-player%.actualTemp.heldItemTemp}%"
                 set line 13 of loop-player's fastboard to "&7Clothing:&r %{temp.players.%loop-player%.feelTemp.clothingTemp}%/%{temp.players.%loop-player%.actualTemp.clothingTemp}%"
-                set line 14 of loop-player's fastboard to "&7Resist:&r %{temp.resistanceEffects.debug.resistInfo}%"
+                set line 14 of loop-player's fastboard to "&7Resist:&r %{temp.resistanceEffects.debug.resistInfo}% %{temp.resistanceHunger.debug.resistInfo}% %{temp.resistanceThirst.debug.resistInfo}%"
                 set line 15 of loop-player's fastboard to "&7Total:&r %{temp.players.%loop-player%.feelTemp.total}%/%{temp.players.%loop-player%.actualTemp.total}%"
                 
         wait {@tempRefreshRate} ticks
@@ -328,7 +338,8 @@ function calcPlayerTemp(plr: player):
         
         # Apply resistances
         set {temp.players.%{_plr}%.feelTemp.preResistTotal} to {temp.players.%{_plr}%.feelTemp.total}
-        set {temp.players.%{_plr}%.feelTemp.total} to calcResistanceEffects({_plr}, {temp.players.%{_plr}%.feelTemp.total})
+        set {temp.players.%{_plr}%.feelTemp.total} to calcResistanceEffects({_plr}, calcResistanceHunger({_plr}, calcResistanceThirst({_plr}, {temp.players.%{_plr}%.feelTemp.total})))
+        
         # The following factors can't be resisted
         add {temp.players.%{_plr}%.feelTemp.clothingTemp} to {temp.players.%{_plr}%.feelTemp.total}
         
@@ -382,7 +393,7 @@ function getDebuffs(plr: player, temp: number):
                             add loop-index-1 to {temp.players.%{_plr}%.debuffs::*}
                         else:
                             add -1 to {temp.players.%{_plr}%.debuffTimers::%loop-index-1%} # Countdown
-                            send "&4You will get %loop-index-1% in %{temp.players.%{_plr}%.debuffTimers::%loop-index-1%}%..." to {_plr}
+                            #send "&4You will get %loop-index-1% in %{temp.players.%{_plr}%.debuffTimers::%loop-index-1%}%..." to {_plr}
                     else:
                         #send "%loop-index-1% countdown starting" to {_plr}
                         set {temp.players.%{_plr}%.debuffTimers::%loop-index-1%} to {@debuffGracePeriod}
@@ -419,11 +430,11 @@ function getBiomeTemp(plr: player) :: number:
     return {_b}
 
 function calcSunlightTemp(plr: player) :: number:
+    set {_sunlightLevel} to sunlight level at {_plr}
+    set {_outsideStrength} to 1 * ({_sunlightLevel}^2)/(15^2) #Save this for later... Replace 1 with {@sunlightModifier}
     
     set {_temp} to calcTimeHeat(getTime({_plr}), getBiomeTemp({_plr}), getBiomeHumidity({_plr}))
     
-    set {_sunlightLevel} to sunlight level at {_plr}
-    set {_outsideStrength} to {_sunlightLevel}/(15 * 1) #Save this for later... Replace 1 with {@sunlightModifier}
     set {_sunlightTemp} to {_temp} * {_outsideStrength} + {@caveAndIndoorTemp} * (1 - {_outsideStrength})
     
     return {_sunlightTemp}
@@ -645,10 +656,45 @@ function calcClothingTemp(plr: player) :: number:
 #######################################
 # CONSUMABLES
 #######################################
-#set {temp.consumables.resist::recovery compass} to 0.6
-#on consume:
-#    if
+### Food Level Resistance
+function calcResistanceHunger(plr: player, temp: number):: number:
+    set {_resPerc} to 1
+    
+    if hunger level of {_plr} is greater than {@hungerMidPoint}:
+        set {_resPerc} to 1 - ( {@hungerMaxResistanceAmt} * (hunger level of {_plr} - {@hungerMidPoint})/(10-{@hungerMidPoint}) )
+    else:
+        set {_resPerc} to 1 + ( {@hungerMaxVulnAmt} * ({@hungerMidPoint} - hunger level of {_plr})/{@hungerMidPoint} )
+    
+    
+    set {temp.resistanceHunger.debug.resistInfo} to "&6H&r%0-({_resPerc} - 1) * 100%%%"
+    set {_currTemp} to ({_temp} - {@idealTemp})*{_resPerc} + {@idealTemp}
+    return {_currTemp}
 
+function calcResistanceThirst(plr: player, temp: number):: number:
+    set {_thirstLevel} to placeholder "thirstbar_current_int" from {_plr} parsed as integer
+    set {_thirstMax} to placeholder "thirstbar_max_int" from {_plr} parsed as integer
+    
+    # Make sure the placeholders were successfully retrieved
+    if any:
+        {_thirstLevel} is not set
+        {_thirstMax} is not set
+    then:
+        return {_temp}
+    
+    set {_resPerc} to 1
+    if {_thirstLevel} is greater than {@thirstMidPoint}:
+        set {_resPerc} to 1 - ( {@thirstMaxResistanceAmt} * ({_thirstLevel} - {@thirstMidPoint})/({_thirstMax}-{@thirstMidPoint}) )
+    else:
+        set {_resPerc} to 1 + ( {@thirstMaxVulnAmt} * ({@thirstMidPoint} - {_thirstLevel})/{@thirstMidPoint} )
+    
+    
+    set {temp.resistanceThirst.debug.resistInfo} to "&bT&r%0-({_resPerc} - 1) * 100%%%"
+    set {_currTemp} to ({_temp} - {@idealTemp})*{_resPerc} + {@idealTemp}
+    return {_currTemp}
+
+command /testThirst <number>:
+    trigger:
+        send calcResistanceThirst(player, arg-1) to player
 ### Potion Effects
 function calcResistanceEffects(plr: player, temp: number):: number:
     set {_currTemp} to {_temp}
@@ -699,9 +745,9 @@ function calcResistanceEffects(plr: player, temp: number):: number:
             then:
                 set {_currTemp} to {@maxTempWhileResisting}
     
-    set {temp.resistanceEffects.debug.resistInfo} to "%(1 - {_resPerc}) * 100%%% "
+    set {temp.resistanceEffects.debug.resistInfo} to "&dE&r%(1 - {_resPerc}) * 100%%% "
     set {temp.resistanceEffects.debug.resistInfo} to {temp.resistanceEffects.debug.resistInfo} + "&bC" if {_resistingCold} is true else {temp.resistanceEffects.debug.resistInfo} + " "
-    set  {temp.resistanceEffects.debug.resistInfo} to {temp.resistanceEffects.debug.resistInfo} + "&cH" if {_resistingHot} is true else {temp.resistanceEffects.debug.resistInfo} + " "
+    set {temp.resistanceEffects.debug.resistInfo} to {temp.resistanceEffects.debug.resistInfo} + "&cH" if {_resistingHot} is true else {temp.resistanceEffects.debug.resistInfo} + " "
     return {_currTemp}
 
 #######################################
@@ -834,4 +880,4 @@ function tempshowbar(plr: player, show: boolean):
 # Fire resistance and potions ✔
 # Gradual temp increase ✔ (Maybe show two numbers: Real temp and current temp. Current temp is used for debuffs/effects). Probably a good idea to make the speed of the temp change dependant on the source (e.g. sunlight heat will increase more slowly than block heat)
 # Add Debuffs ✔ Just add the system for now. Need others' input for which debuffs to add. Should allow for potion effects (e.g. slowness), whatever freezing is (condition?), look into placeholderAPI for thirst implementation
-#custom thermometre item (clock reskin) : Should reflect actual temperature
+#custom thermometer item ✔
