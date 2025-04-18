@@ -20,7 +20,7 @@ options:
     enabledWorlds: "world", and "seasons-desert"
     thermometerType: {seasons.customItems::thermometer}
 
-    debuffGracePeriod: 9 # The amount of seconds someone can be past the temperature threshold before suffering from debuffs
+    debuffGracePeriod: 33 # The amount of seconds someone can be past the temperature threshold before suffering from debuffs
     
     caveAndIndoorTemp: 64 # In Fahrenheit
     #sunlightModifier: 2 # How strong shade/lack of sun level is. The higher, the more each lack of sky light level brings the player closer to caveAndIndoorTemp. DO NOT SET TO 0 !!! https://www.desmos.com/calculator/7cythjt1ib
@@ -40,8 +40,8 @@ options:
     # Think of it as "what % of the effect do you feel immediately?" then it just slowly gets closer to the real temp from there (though larger % will always lead to a faster rate)
     # Use this graph to help visualize your numbers https://www.desmos.com/calculator/rv6lg0hwbg
     
-    sunlightRate: 0.08
-    weatherRate: 0.1
+    sunlightRate: 0.12
+    weatherRate: 0.16
     waterRate: 0.75
     environmentRate: 0.15
     clothingRate: 0.25
@@ -511,7 +511,7 @@ function calcWeatherTemp(plr: player) :: number:
     
     if weather in world of {_plr} is not clear:
         if getBiomeHumidity({_plr}) is 0: # no downfall, but still cloudy
-            add -10 to {_temp}
+            add -15 to {_temp}
         else:
             set {_biomeTemp} to getBiomeTemp({_plr})
             
