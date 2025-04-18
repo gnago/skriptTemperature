@@ -27,6 +27,8 @@ options:
     timePeakTempTime: 1400 # Time of day when the temperature is highest
     environmentRange: 5 # Range where blocks will affect the player's temperature
     inWaterModifier: -24 # How much colder water is at the surface
+    cloudResistFactor: 0.6 # % that clouds (storms) will resist heat from the sun
+    cloudModifier: -10 # Temperature difference clouds make, regardless of biome humidity and temperature
     
     ### Activity / State Temps ###
     sprintingTemp: 8 # While sprinting
@@ -41,7 +43,6 @@ options:
     # Use this graph to help visualize your numbers https://www.desmos.com/calculator/rv6lg0hwbg
     
     sunlightRate: 0.12
-    weatherRate: 0.16
     waterRate: 0.75
     environmentRate: 0.15
     clothingRate: 0.25
@@ -177,16 +178,17 @@ function tempClothingConfig():
     set {temp.resistanceClothing::chainmail} to 0
     
     set {temp.resistanceEnchants::fire protection} to 0.02 # Full Fire Prot IV armor will resist ~25% of heat (1 - 0.98^16)
-    
+
 function tempDebuffsConfig():
     delete {temp.debuffs::*}
     # Debuffs
+    # Use format "#,#" if there are two thresholds for the same effect
     set {temp.debuffs::burn} to 140
     set {temp.debuffs::blindness,1} to 129
-    set {temp.debuffs::nausea,1} to 119
+    set {temp.debuffs::nausea,1} to 124
     set {temp.debuffs::hunger,1} to 108
     
-    set {temp.debuffs::weakness,1} to "29"
+    set {temp.debuffs::weakness,1} to 29
     set {temp.debuffs::slowness,1} to 41
     set {temp.debuffs::mining fatigue,1} to -13
     set {temp.debuffs::slowness,2} to -22
@@ -275,20 +277,17 @@ function startTemperatureLoop():
             if {temp.players.%loop-player%.debugModeOn} is set:
                 set title of loop-player's fastboard to "&3Temperature Factors&r (f/a)"
                 set line 1 of loop-player's fastboard to "&7Biome Temp/Hum:&r %getBiomeTemp(loop-player)%/%getBiomeHumidity(loop-player)%"
-                set line 2 of loop-player's fastboard to "&7Time:&r %getTime(loop-player)%"
-                set line 3 of loop-player's fastboard to "&7Time Temp:&r %calcTimeHeat(getTime(loop-player), getBiomeTemp(loop-player), getBiomeHumidity(loop-player))%"
-                set line 4 of loop-player's fastboard to "&7Sky exposure:&r %sunlight level at loop-player%"
-                set line 5 of loop-player's fastboard to "&7Sunlight:&r %{temp.players.%loop-player%.feelTemp.sunlightTemp}%/%{temp.players.%loop-player%.actualTemp.sunlightTemp}%"
-                set line 6 of loop-player's fastboard to "&7Weather:&r %{temp.players.%loop-player%.feelTemp.weatherTemp}%/%{temp.players.%loop-player%.actualTemp.weatherTemp}%"
-                set line 7 of loop-player's fastboard to "&7Water:&r %{temp.players.%loop-player%.feelTemp.waterTemp}%/%{temp.players.%loop-player%.actualTemp.waterTemp}%"
-                set line 8 of loop-player's fastboard to "&7Wetness:&r %{temp.players.%loop-player%.wetness}%/{@maxWetness}:&r %{temp.players.%loop-player%.wetnessTemp}%"
-                set line 9 of loop-player's fastboard to "&7Environment:&r %{temp.players.%loop-player%.feelTemp.environmentTemp}%/%{temp.players.%loop-player%.actualTemp.environmentTemp}%"
-                set line 10 of loop-player's fastboard to "&7Activity:&r %{temp.players.%loop-player%.feelTemp.activityTemp}%/%{temp.players.%loop-player%.actualTemp.activityTemp}%"
-                set line 11 of loop-player's fastboard to "&7State:&r %{temp.players.%loop-player%.feelTemp.stateTemp}%/%{temp.players.%loop-player%.actualTemp.stateTemp}%"
-                set line 12 of loop-player's fastboard to "&7Tool:&r %{temp.players.%loop-player%.feelTemp.heldItemTemp}%/%{temp.players.%loop-player%.actualTemp.heldItemTemp}%"
-                set line 13 of loop-player's fastboard to "&7Armr:&r %{temp.players.%loop-player%.feelTemp.clothingTemp}%/%{temp.players.%loop-player%.actualTemp.clothingTemp}% %{temp.resistanceClothing.debug.resistInfo}%"
-                set line 14 of loop-player's fastboard to "&7Resist:&r %{temp.resistanceEffects.debug.resistInfo}% %{temp.resistanceHunger.debug.resistInfo}% %{temp.resistanceThirst.debug.resistInfo}%"
-                set line 15 of loop-player's fastboard to "&7Total:&r %{temp.players.%loop-player%.feelTemp.total}%/%{temp.players.%loop-player%.actualTemp.total}%"
+                set line 2 of loop-player's fastboard to "&7Time Temp:&r %getTime(loop-player)%: %calcTimeHeat(getTime(loop-player), getBiomeTemp(loop-player), getBiomeHumidity(loop-player))%"
+                set line 3 of loop-player's fastboard to "&7Sunlight:&r %skylight level at loop-player%: %{temp.players.%loop-player%.feelTemp.sunlightTemp}%/%{temp.players.%loop-player%.actualTemp.sunlightTemp}%"
+                set line 4 of loop-player's fastboard to "&7Water:&r %{temp.players.%loop-player%.feelTemp.waterTemp}%/%{temp.players.%loop-player%.actualTemp.waterTemp}%"
+                set line 5 of loop-player's fastboard to "&7Wetness:&r %{temp.players.%loop-player%.wetness}%/{@maxWetness}:&r %{temp.players.%loop-player%.wetnessTemp}%"
+                set line 6 of loop-player's fastboard to "&7Environment:&r %{temp.players.%loop-player%.feelTemp.environmentTemp}%/%{temp.players.%loop-player%.actualTemp.environmentTemp}%"
+                set line 7 of loop-player's fastboard to "&7Activity:&r %{temp.players.%loop-player%.feelTemp.activityTemp}%/%{temp.players.%loop-player%.actualTemp.activityTemp}%"
+                set line 8 of loop-player's fastboard to "&7State:&r %{temp.players.%loop-player%.feelTemp.stateTemp}%/%{temp.players.%loop-player%.actualTemp.stateTemp}%"
+                set line 9 of loop-player's fastboard to "&7Tool:&r %{temp.players.%loop-player%.feelTemp.heldItemTemp}%/%{temp.players.%loop-player%.actualTemp.heldItemTemp}%"
+                set line 10 of loop-player's fastboard to "&7Armr:&r %{temp.players.%loop-player%.feelTemp.clothingTemp}%/%{temp.players.%loop-player%.actualTemp.clothingTemp}% %{temp.resistanceClothing.debug.resistInfo}%"
+                set line 11 of loop-player's fastboard to "&7Resist:&r %{temp.resistanceEffects.debug.resistInfo}% %{temp.resistanceHunger.debug.resistInfo}% %{temp.resistanceThirst.debug.resistInfo}%"
+                set line 12 of loop-player's fastboard to "&7Total:&r %{temp.players.%loop-player%.feelTemp.total}%/%{temp.players.%loop-player%.actualTemp.total}%"
                 
         wait {@tempRefreshRate} ticks
 
@@ -301,12 +300,6 @@ function calcPlayerTemp(plr: player):
             set {temp.players.%{_plr}%.feelTemp.sunlightTemp} to {temp.players.%{_plr}%.actualTemp.sunlightTemp}
         else:
             set {temp.players.%{_plr}%.feelTemp.sunlightTemp} to calcLogGradual({temp.players.%{_plr}%.feelTemp.sunlightTemp}, {temp.players.%{_plr}%.actualTemp.sunlightTemp}, {@sunlightRate})
-        
-        set {temp.players.%{_plr}%.actualTemp.weatherTemp} to calcWeatherTemp({_plr})
-        if {temp.players.%{_plr}%.feelTemp.sunlightTemp} is not set:
-            set {temp.players.%{_plr}%.feelTemp.weatherTemp} to {temp.players.%{_plr}%.actualTemp.weatherTemp}
-        else:
-            set {temp.players.%{_plr}%.feelTemp.weatherTemp} to calcLogGradual({temp.players.%{_plr}%.feelTemp.weatherTemp}, {temp.players.%{_plr}%.actualTemp.weatherTemp}, {@weatherRate})
         
         set {temp.players.%{_plr}%.actualTemp.environmentTemp} to calcEnvironmentTemp({_plr})
         if {temp.players.%{_plr}%.feelTemp.environmentTemp} is not set:
@@ -349,7 +342,6 @@ function calcPlayerTemp(plr: player):
         
         set {temp.players.%{_plr}%.actualTemp.total} to 0
         add {temp.players.%{_plr}%.actualTemp.sunlightTemp} to {temp.players.%{_plr}%.actualTemp.total}
-        add {temp.players.%{_plr}%.actualTemp.weatherTemp} to {temp.players.%{_plr}%.actualTemp.total}
         add {temp.players.%{_plr}%.actualTemp.environmentTemp} to {temp.players.%{_plr}%.actualTemp.total}
         add {temp.players.%{_plr}%.actualTemp.waterTemp} to {temp.players.%{_plr}%.actualTemp.total}
         add {temp.players.%{_plr}%.wetnessTemp} to {temp.players.%{_plr}%.actualTemp.total}
@@ -360,7 +352,6 @@ function calcPlayerTemp(plr: player):
         
         set {temp.players.%{_plr}%.feelTemp.total} to 0
         add {temp.players.%{_plr}%.feelTemp.sunlightTemp} to {temp.players.%{_plr}%.feelTemp.total}
-        add {temp.players.%{_plr}%.feelTemp.weatherTemp} to {temp.players.%{_plr}%.feelTemp.total}
         add {temp.players.%{_plr}%.feelTemp.environmentTemp} to {temp.players.%{_plr}%.feelTemp.total}
         add {temp.players.%{_plr}%.feelTemp.waterTemp} to {temp.players.%{_plr}%.feelTemp.total}
         add {temp.players.%{_plr}%.wetnessTemp} to {temp.players.%{_plr}%.feelTemp.total}
@@ -473,6 +464,7 @@ function calcSunlightTemp(plr: player) :: number:
     set {_outsideStrength} to 1 * ({_skylightLevel}^2)/(15^2) #Save this for later... Replace 1 with {@sunlightModifier}
     
     set {_temp} to calcTimeHeat(getTime({_plr}), getBiomeTemp({_plr}), getBiomeHumidity({_plr}))
+    set {_temp} to calcWeatherTemp({_plr}, {_temp})
     
     set {_sunlightTemp} to {_temp} * {_outsideStrength} + {@caveAndIndoorTemp} * (1 - {_outsideStrength})
 
@@ -502,24 +494,20 @@ function getTime(ent: entity) :: number:
     set {_goodTime} to "%{_hoursStr}%%{_decMinsStr}%"
     return {_goodTime} parsed as number
 
-
-###########
-# WEATHER
-###########
-function calcWeatherTemp(plr: player) :: number:
-    set {_temp} to 0
-    
+function calcWeatherTemp(plr: player, temp: number) :: number:
     if weather in world of {_plr} is not clear:
-        if getBiomeHumidity({_plr}) is 0: # no downfall, but still cloudy
-            add -15 to {_temp}
+        if getBiomeHumidity({_plr}) is 0: # no downfall
+            # clouds protect from heat of sun
+            if {_temp} is greater than {@idealTemp}:
+                set {_temp} to ({_temp} - {@idealTemp})*{@cloudResistFactor} + {@idealTemp}
         else:
-            set {_biomeTemp} to getBiomeTemp({_plr})
-            
-            #If it is snowing
-            if {_biomeTemp} is greater than or equal to 0.15:
-                add {@inWaterModifier} to {_temp}
+            # Note: getting wet in rain is handled by calcWetness
+            # If it is snowing
+            if getBiomeTemp({_plr}) is greater than or equal to 0.15:
+                add {@cloudModifier} * 0.5 to {_temp}
             else:
-                add {@inWaterModifier} * 0.5 to {_temp}
+                add {@cloudModifier} * 0.2 to {_temp}
+        add {@cloudModifier} to {_temp}
     return {_temp}
 
 
