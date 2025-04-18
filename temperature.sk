@@ -27,6 +27,7 @@ options:
     timePeakTempTime: 1400 # Time of day when the temperature is highest
     environmentRange: 5 # Range where blocks will affect the player's temperature
     inWaterModifier: -24 # How much colder water is at the surface
+    stormModifier: -15 # Temperature difference storms make, regardless of biome humidity and temperature
     
     ### Activity / State Temps ###
     sprintingTemp: 8 # While sprinting
@@ -177,16 +178,17 @@ function tempClothingConfig():
     set {temp.resistanceClothing::chainmail} to 0
     
     set {temp.resistanceEnchants::fire protection} to 0.02 # Full Fire Prot IV armor will resist ~25% of heat (1 - 0.98^16)
-    
+
 function tempDebuffsConfig():
     delete {temp.debuffs::*}
     # Debuffs
+    # Use format "#,#" if there are two thresholds for the same effect
     set {temp.debuffs::burn} to 140
     set {temp.debuffs::blindness,1} to 129
-    set {temp.debuffs::nausea,1} to 119
+    set {temp.debuffs::nausea,1} to 124
     set {temp.debuffs::hunger,1} to 108
     
-    set {temp.debuffs::weakness,1} to "29"
+    set {temp.debuffs::weakness,1} to 29
     set {temp.debuffs::slowness,1} to 41
     set {temp.debuffs::mining fatigue,1} to -13
     set {temp.debuffs::slowness,2} to -22
@@ -510,9 +512,8 @@ function calcWeatherTemp(plr: player) :: number:
     set {_temp} to 0
     
     if weather in world of {_plr} is not clear:
-        if getBiomeHumidity({_plr}) is 0: # no downfall, but still cloudy
-            add -15 to {_temp}
-        else:
+        add {@stormModifier} to {_temp} # base temperature difference of storms, regardless of wether or not there is rain
+        if getBiomeHumidity({_plr}) is greater than 0: # if there is downfall
             set {_biomeTemp} to getBiomeTemp({_plr})
             
             #If it is snowing
